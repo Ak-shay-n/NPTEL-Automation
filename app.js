@@ -9,6 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+app.use(express.json());
 dotenv.config();
 
 const CLIENT_ID = process.env.CLIENT_ID_ENV;
@@ -79,6 +80,55 @@ app.post('/logout', (req, res) => {
     });
 });
 
+app.get('/get-events', async (req, res) => {
+  if (!userInfo) {
+    return res.status(401).json({ success: false, error: 'Not authenticated' });
+  }
+
+  const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+  try {
+    console.log("Fetching events from Google Calendar API...");
+    const response = await calendar.events.list({
+      calendarId: 'primary',
+      timeMin: (new Date()).toISOString(),
+      maxResults: 10,
+      singleEvents: true,
+      orderBy: 'startTime',
+    });
+    const events = response.data.items;
+    console.log("Fetched events:", events);
+    res.json({ success: true, events });
+  } catch (error) {
+    console.error('Error fetching events:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/delete-events', async (req, res) => {
+  if (!userInfo) {
+      return res.status(401).json({ success: false, error: 'Not authenticated' });
+  }
+
+  const { eventIds } = req.body; // This line will fail if req.body is undefined
+  if (!eventIds || !Array.isArray(eventIds)) {
+      return res.status(400).json({ success: false, error: 'Invalid event IDs' });
+  }
+
+  const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+  try {
+      for (const eventId of eventIds) {
+          await calendar.events.delete({
+              calendarId: 'primary',
+              eventId: eventId,
+          });
+      }
+      res.json({ success: true });
+  } catch (error) {
+      console.error('Error deleting events:', error);
+      res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.get('/add-event', async (req, res) => {
   if (!userInfo) {
     return res.status(401).json({ success: false, error: 'Not authenticated' });
@@ -99,11 +149,11 @@ app.get('/add-event', async (req, res) => {
       summary: 'Exam Schedule',
       description: 'Final examination for the semester',
       start: {
-        dateTime: '2024-08-20T09:00:00',
+        dateTime: '2024-08-21T09:00:00',
         timeZone: userTimeZone,
       },
       end: {
-        dateTime: '2024-08-20T12:00:00',
+        dateTime: '2024-08-21T12:00:00',
         timeZone: userTimeZone,
       },
       reminders: {

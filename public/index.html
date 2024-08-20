@@ -67,14 +67,28 @@
         <button id="authButton" onclick="authenticate()">Authenticate</button>
         <button onclick="addEvent()">Add Event</button>
         <button id="logoutButton" onclick="logout()" style="display: none;">Logout</button>
+        <button id="fetchEventsButton" onclick="fetchEvents()" style="display: none;">Fetch Events</button>
+        <button id="deleteSelectedEventsButton" onclick="deleteSelectedEvents()" style="display: none;">Delete Selected Events</button>
         <div id="result"></div>
-    </div>
+        <div id="eventsList">
+        </div>
 
     <script>
+        
         function authenticate() {
             window.location.href = '/auth';
         }
 
+        function displayMessage(message, isError = false) {
+        const resultElement = document.getElementById('result');
+        resultElement.innerHTML = message;
+        resultElement.style.color = isError ? 'red' : 'green';
+
+        // Remove the message after 5 seconds
+        setTimeout(() => {
+            resultElement.innerText = '';
+        }, 5000);
+}
         async function logout() {
             try {
                 const response = await fetch('/logout', { method: 'POST' });
@@ -101,12 +115,81 @@
                 const response = await fetch('/add-event');
                 const data = await response.json();
                 if (data.success) {
-                    document.getElementById('result').innerHTML = `Event added successfully!<br>Event ID: ${data.eventId}`;
+                    displayMessage(`Event added successfully!<br>Event ID: ${data.eventId}`);
                 } else {
-                    document.getElementById('result').innerText = `Failed to add event: ${data.error}`;
+                    displayMessage(`Failed to add event: ${data.error}`, true);
                 }
             } catch (error) {
+                displayMessage(`Error: ${error.message}`, true);
+            }
+        }
+
+        async function fetchEvents() {
+            console.log("Fetching events...");
+            try {
+                const response = await fetch('/get-events');
+                const data = await response.json();
+                console.log("Received data:", data);
+                if (data.success) {
+                    displayEvents(data.events);
+                } else {
+                    document.getElementById('result').innerText = `Failed to fetch events: ${data.error}`;
+                }
+            } catch (error) {
+                console.error("Error fetching events:", error);
                 document.getElementById('result').innerText = `Error: ${error.message}`;
+            }
+        }
+
+        async function displayEvents(events) {
+            console.log("Displaying events:", events);
+            const eventsListElement = document.getElementById('eventsList');
+            eventsListElement.innerHTML = '';
+
+            if (events.length === 0) {
+                const noEventsMessage = document.createElement('p');
+                noEventsMessage.innerText = 'No events found.';
+                eventsListElement.appendChild(noEventsMessage);
+
+                // Remove the "No events found" message after 5 seconds
+                setTimeout(() => {
+                    eventsListElement.innerHTML = '';
+                }, 5000);
+            } else {
+                events.forEach(event => {
+                    const eventElement = document.createElement('div');
+                    eventElement.innerHTML = `
+                        <input type="checkbox" id="${event.id}" name="eventCheckbox" value="${event.id}">
+                        <label for="${event.id}">${event.summary} - ${new Date(event.start.dateTime).toLocaleString()}</label>
+                    `;
+                    eventsListElement.appendChild(eventElement);
+                });
+            }
+        }
+
+        async function deleteSelectedEvents() {
+            const selectedEvents = Array.from(document.querySelectorAll('input[name="eventCheckbox"]:checked')).map(checkbox => checkbox.value);
+            if (selectedEvents.length === 0) {
+                alert('Please select events to delete');
+                return;
+            }
+            try {
+                const response = await fetch('/delete-events', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ eventIds: selectedEvents }),
+                });
+                const data = await response.json();
+                if (data.success) {
+                    displayMessage('Events deleted successfully');
+                    fetchEvents(); // Refresh the events list
+                } else {
+                    displayMessage(`Failed to delete events: ${data.error}`, true);
+                }
+            } catch (error) {
+                displayMessage(`Error: ${error.message}`, true);
             }
         }
 
@@ -120,6 +203,8 @@
                     document.getElementById('userEmail').innerText = data.email || '';
                     document.getElementById('authButton').style.display = 'none';
                     document.getElementById('logoutButton').style.display = 'inline-block';
+                    document.getElementById('fetchEventsButton').style.display = 'inline-block';
+                    document.getElementById('deleteSelectedEventsButton').style.display = 'inline-block';
                     
                     if (data.picture) {
                         document.getElementById('userPicture').src = data.picture;
@@ -132,6 +217,8 @@
                     document.getElementById('authButton').style.display = 'inline-block';
                     document.getElementById('logoutButton').style.display = 'none';
                     document.getElementById('userPicture').style.display = 'none';
+                    document.getElementById('fetchEventsButton').style.display = 'none';
+                    document.getElementById('deleteSelectedEventsButton').style.display = 'none';
                 }
             } catch (error) {
                 console.error('Error checking auth status:', error);
