@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
+    <title>Google Calendar Integration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            text-align: center;
+            background-color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        button {
+            margin: 0.5rem;
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        #userInfo {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: #e0e0e0;
+            padding: 5px 10px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+        }
+        #userPicture {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        #userDetails {
+            display: flex;
+            flex-direction: column;
+        }
+        #authStatus {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="userInfo">
+        <img id="userPicture" src="" alt="Profile Picture" style="display: none;">
+        <div id="userDetails">
+            <span id="userName">Guest User</span>
+            <span id="userEmail"></span>
+        </div>
+    </div>
+    <div class="container">
+        <h1>Google Calendar Integration</h1>
+        <div id="authStatus">Not authenticated</div>
+        <button id="authButton" onclick="authenticate()">Authenticate</button>
+        <button onclick="addEvent()">Add Event</button>
+        <button id="logoutButton" onclick="logout()" style="display: none;">Logout</button>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        function authenticate() {
+            window.location.href = '/auth';
+        }
+
+        async function logout() {
+            try {
+                const response = await fetch('/logout', { method: 'POST' });
+                if (response.ok) {
+                    // Clear event data
+                    document.getElementById('result').innerText = '';
+                    
+                    // Reset the URL to its base form (without query params)
+                    const baseUrl = window.location.origin + window.location.pathname;
+                    window.history.pushState({}, '', baseUrl);
+                    
+                    // Re-check auth status
+                    checkAuthStatus();
+                } else {
+                    console.error('Logout failed');
+                }
+            } catch (error) {
+                console.error('Error during logout:', error);
+            }
+        }
+
+        async function addEvent() {
+            try {
+                const response = await fetch('/add-event');
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('result').innerHTML = `Event added successfully!<br>Event ID: ${data.eventId}`;
+                } else {
+                    document.getElementById('result').innerText = `Failed to add event: ${data.error}`;
+                }
+            } catch (error) {
+                document.getElementById('result').innerText = `Error: ${error.message}`;
+            }
+        }
+
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/auth-status');
+                const data = await response.json();
+                if (data.authenticated) {
+                    document.getElementById('authStatus').innerText = 'Authenticated';
+                    document.getElementById('userName').innerText = data.name || 'Authenticated User';
+                    document.getElementById('userEmail').innerText = data.email || '';
+                    document.getElementById('authButton').style.display = 'none';
+                    document.getElementById('logoutButton').style.display = 'inline-block';
+                    
+                    if (data.picture) {
+                        document.getElementById('userPicture').src = data.picture;
+                        document.getElementById('userPicture').style.display = 'inline-block';
+                    }
+                } else {
+                    document.getElementById('authStatus').innerText = 'Not authenticated';
+                    document.getElementById('userName').innerText = 'Guest User';
+                    document.getElementById('userEmail').innerText = '';
+                    document.getElementById('authButton').style.display = 'inline-block';
+                    document.getElementById('logoutButton').style.display = 'none';
+                    document.getElementById('userPicture').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error checking auth status:', error);
+            }
+        }
+
+        // Check auth status when the page loads
+        window.onload = checkAuthStatus;
+
+        // Check for authentication success parameter in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('auth') === 'success') {
+            checkAuthStatus();
+        }
+    </script>
+</body>
+</html>
