@@ -85,28 +85,66 @@ app.get('/add-event', async (req, res) => {
   }
 
   const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-
-  const event = {
-    summary: 'Exam Schedule',
-    start: {
-      dateTime: '2024-08-22T11:00:00',  // Event start time (local time)
-      timeZone: 'Asia/Kolkata',          // Specific timezone
-    },
-    end: {
-      dateTime: '2024-08-22T12:00:00',   // Event end time (local time)
-      timeZone: 'Asia/Kolkata',          // Same timezone
-    },
-  };
-
   try {
+    // Fetch the user's time zone
+    const settingsResponse = await calendar.settings.get({
+      setting: 'timezone'
+    });
+    const userTimeZone = settingsResponse.data.value;
+
+    console.log('User time zone:', userTimeZone);
+
+    // Create the event using the user's time zone
+    const event = {
+      summary: 'Exam Schedule',
+      description: 'Final examination for the semester',
+      start: {
+        dateTime: '2024-08-20T09:00:00',
+        timeZone: userTimeZone,
+      },
+      end: {
+        dateTime: '2024-08-20T12:00:00',
+        timeZone: userTimeZone,
+      },
+      reminders: {
+        useDefault: false,
+        overrides: [
+          { method: 'email', minutes: 60 * 24 },  // 1 day before
+          { method: 'popup', minutes: 60 * 2 },   // 2 hours before
+          { method: 'popup', minutes: 30 },       // 30 minutes before
+          { method: 'popup', minutes: 60 * 6 - 5 },     
+        ]
+      }
+    };
+
     const result = await calendar.events.insert({
       calendarId: 'primary',
       resource: event,
+      sendNotifications: true,
+      sendUpdates: 'all',
     });
-    res.json({ success: true, eventId: result.data.id });
+    
+    // Verify that the event was created correctly
+    const createdEvent = await calendar.events.get({
+      calendarId: 'primary',
+      eventId: result.data.id,
+    });
+
+    console.log('Created event:', createdEvent.data);
+    console.log('Event time zone:', createdEvent.data.start.timeZone);
+    console.log('Event reminders:', createdEvent.data.reminders);
+
+    res.json({ 
+      success: true, 
+      eventId: result.data.id,
+      eventTimeZone: createdEvent.data.start.timeZone,
+      reminders: createdEvent.data.reminders 
+    });
   } catch (error) {
+    console.error('Error creating event:', error);
     res.status(500).json({ success: false, error: error.message });
   }
+
 });
 
 const PORT = 3000;
